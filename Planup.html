@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Planup $ Pro | TVM Financial Planner & Inflation Engine</title>
+  <!-- Dependencies: Chart.js & html2pdf.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-card: #111827;
+      --bg-card-alt: #1f2937;
+      --border: #283548;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background-color: var(--bg-primary); color: var(--text-main); padding: 20px; font-size: 14px; }
+
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--border);
+    }
+    .brand-title { font-size: 1.4rem; font-weight: 700; }
+    .brand-title span { color: var(--accent); }
+    .actions-bar { display: flex; gap: 10px; align-items: center; }
+
+    .btn {
+      background: var(--bg-card-alt); color: var(--text-main); border: 1px solid var(--border);
+      padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #374151; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger { background: #7f1d1d; border-color: var(--danger); }
+    .btn-danger:hover { background: var(--danger); }
+
+    .layout-grid {
+      display: grid; grid-template-columns: 420px 1fr; gap: 20px;
+    }
+    @media (max-width: 1024px) {
+      .layout-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 18px; margin-bottom: 18px;
+    }
+    .card-title {
+      font-size: 1rem; font-weight: 600; margin-bottom: 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.03em; }
+    input, select {
+      width: 100%; background: var(--bg-card-alt); border: 1px solid var(--border);
+      color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 0.9rem;
+    }
+    input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+    /* Inflation Timeline Cards */
+    .timeline-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 18px;
+    }
+    .timeline-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px; position: relative;
+    }
+    .timeline-card::before {
+      content: ""; position: absolute; top: 0; left: 0; width: 4px; height: 100%; border-radius: 8px 0 0 8px;
+    }
+    .past-card::before { background: var(--warning); }
+    .today-card::before { background: var(--accent); }
+    .future-card::before { background: var(--success); }
+
+    .timeline-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+    .timeline-value { font-size: 1.35rem; font-weight: 700; margin-top: 4px; }
+
+    .metrics-summary {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px;
+    }
+    .metric-item {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    }
+    .metric-item-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; }
+    .metric-item-val { font-size: 1.25rem; font-weight: 700; margin-top: 4px; }
+    .text-highlight { color: #60a5fa; }
+    .text-success { color: var(--success); }
+
+    .slider-row { margin-bottom: 12px; }
+    .slider-meta { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; }
+    input[type=range] { cursor: pointer; }
+
+    .chart-box { height: 280px; position: relative; margin-top: 10px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 10px; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-weight: 600; }
+
+    .tag {
+      font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: var(--bg-card-alt);
+      color: var(--text-muted); font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand-title">Planup $ <span>Pro</span></div>
+    <div class="actions-bar">
+      <select id="goalSelector" onchange="loadSelectedGoal()" style="width: auto;">
+        <!-- Filled dynamically -->
+      </select>
+      <button class="btn" onclick="createNewGoal()">+ New Goal</button>
+      <button class="btn btn-danger" onclick="deleteCurrentGoal()">Delete</button>
+      <button class="btn btn-primary" onclick="exportToPDF()">Export PDF</button>
+    </div>
+  </header>
+
+  <div class="layout-grid" id="printableArea">
+    <!-- LEFT PANEL: GOAL CONTEXT, INFLATION & TVM ENGINE -->
+    <div>
+      <div class="card">
+        <div class="card-title">Goal Context & Purchasing Power</div>
+        <div class="form-group">
+          <label>Goal Identification</label>
+          <input type="text" id="goalTitle" value="Child Higher Education" oninput="saveCurrentGoal()" />
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Today's Cost (Base Goal Value)</label>
+            <input type="number" id="costToday" value="50000" oninput="calculateEngine()" />
+          </div>
+          <div class="form-group">
+            <label>Annual Inflation Rate (%)</label>
+            <input type="number" id="inflationRate" step="0.1" value="6.0" oninput="calculateEngine()" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Use Inflation-Adjusted Future Cost as Target FV?</label>
+          <select id="autoSetFV" onchange="toggleAutoFV()">
+            <option value="yes" selected>Yes (Auto-scale FV to inflation)</option>
+            <option value="no">No (Fixed Target FV manually entered)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>TVM Calculation Engine</span>
+          <span class="tag" id="rateStatusTag">Nominal Rate</span>
+        </div>
+        
+        <div class="form-group">
+          <label>Target Parameter to Solve</label>
+          <select id="solveTarget" onchange="updateSolveUI()">
+            <option value="pmt" selected>Required Payment (PMT)</option>
+            <option value="fv">Future Value Accumulated (FV)</option>
+            <option value="pv">Initial Present Value Needed (PV)</option>
+          </select>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group" id="containerPV">
+            <label>Present Value / Lump Sum (PV)</label>
+            <input type="number" id="inputPV" value="5000" oninput="calculateEngine()" />
+          </div>
+          <div class="form-group" id="containerFV">
+            <label>Future Value Goal (FV)</label>
+            <input type="number" id="inputFV" value="89542" oninput="calculateEngine()" />
+          </div>
+        </div>
+
+        <div class="form-group" id="containerPMT" style="display: none;">
+          <label>Periodic Contribution (PMT)</label>
+          <input type="number" id="inputPMT" value="500" oninput="calculateEngine()" />
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nominal Return (%)</label>
+            <input type="number" id="nominalRate" step="0.01" value="10.0" oninput="calculateEngine()" />
+          </div>
+          <div class="form-group">
+            <label>Return Type</label>
+            <select id="useRealReturns" onchange="calculateEngine()">
+              <option value="nominal" selected>Nominal Investment Return</option>
+              <option value="real">Real Return (Fisher Adjusted)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Horizon (Years)</label>
+            <input type="number" id="horizonYears" value="10" min="0" oninput="calculateEngine()" />
+          </div>
+          <div class="form-group">
+            <label>Months</label>
+            <input type="number" id="horizonMonths" value="0" min="0" max="11" oninput="calculateEngine()" />
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Payment Freq (P/Y)</label>
+            <select id="pySelect" onchange="calculateEngine()">
+              <option value="12" selected>Monthly (12)</option>
+              <option value="4">Quarterly (4)</option>
+              <option value="1">Annual (1)</option>
+              <option value="52">Weekly (52)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Compounding Freq (C/Y)</label>
+            <select id="cySelect" onchange="calculateEngine()">
+              <option value="12">Monthly (12)</option>
+              <option value="4">Quarterly (4)</option>
+              <option value="1" selected>Annual (1)</option>
+              <option value="365">Daily (365)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Cash Flow Timing</label>
+          <select id="timingSelect" onchange="calculateEngine()">
+            <option value="0" selected>End of Period (Ordinary Annuity)</option>
+            <option value="1">Beginning of Period (Annuity Due)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: TIMELINE, DASHBOARD, SLIDERS & SCHEDULE -->
+    <div>
+      <!-- PAST vs PRESENT vs FUTURE TIMELINE -->
+      <div class="timeline-grid">
+        <div class="timeline-card past-card">
+          <div class="timeline-label" id="labelPast">Past Cost</div>
+          <div class="timeline-value" id="valPast">--</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">At same inflation rate</div>
+        </div>
+        <div class="timeline-card today-card">
+          <div class="timeline-label">Today's Benchmark Cost</div>
+          <div class="timeline-value" id="valToday">--</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">Baseline cost today</div>
+        </div>
+        <div class="timeline-card future-card">
+          <div class="timeline-label" id="labelFuture">Future Target Cost</div>
+          <div class="timeline-value" id="valFuture">--</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">At expected maturity</div>
+        </div>
+      </div>
+
+      <!-- METRIC CARDS -->
+      <div class="metrics-summary">
+        <div class="metric-item">
+          <div class="metric-item-label" id="labelSolMetric">Payment Required</div>
+          <div class="metric-item-val text-highlight" id="resSol">--</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-item-label">Net Accumulated (FV)</div>
+          <div class="metric-item-val" id="resFV">--</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-item-label">Total Out-of-Pocket</div>
+          <div class="metric-item-val" id="resPrincipal">--</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-item-label">Wealth Growth (Interest)</div>
+          <div class="metric-item-val text-success" id="resGain">--</div>
+        </div>
+      </div>
+
+      <!-- DYNAMIC SENSITIVITY MODIFIERS -->
+      <div class="card">
+        <div class="card-title">Real-Time Plan Modifiers</div>
+        <div class="slider-row">
+          <div class="slider-meta">
+            <span>Nominal Return Adjustment</span>
+            <span id="labelSliderRate">10.0%</span>
+          </div>
+          <input type="range" id="sliderRate" min="1" max="25" step="0.25" value="10.0" oninput="syncRateSlider()" />
+        </div>
+        <div class="slider-row">
+          <div class="slider-meta">
+            <span>Horizon Adjustment</span>
+            <span id="labelSliderYears">10 Years</span>
+          </div>
+          <input type="range" id="sliderYears" min="1" max="40" step="1" value="10" oninput="syncYearsSlider()" />
+        </div>
+      </div>
+
+      <!-- TRAJECTORY CHART -->
+      <div class="card">
+        <div class="card-title">Wealth Accumulation Trajectory</div>
+        <div class="chart-box">
+          <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ANNUAL SUMMARY TABLE -->
+      <div class="card">
+        <div class="card-title">Annual Milestones Schedule</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Cumulative Deposits</th>
+              <th>Interest Accrued</th>
+              <th>Portfolio Value</th>
+            </tr>
+          </thead>
+          <tbody id="scheduleTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let chartInstance = null;
+    const STORAGE_KEY = 'fingoal_architect_profiles_v1';
+
+    // State Management for Multi-Goal Support
+    let goalLibrary = {};
+    let activeGoalId = 'default';
+
+    function initStore() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          goalLibrary = JSON.parse(saved);
+        } catch (e) {
+          goalLibrary = {};
+        }
+      }
+      if (!Object.keys(goalLibrary).length) {
+        goalLibrary = {
+          'default': {
+            name: "Child's Higher Education",
+            costToday: 50000,
+            inflation: 6.0,
+            autoSetFV: 'yes',
+            solveTarget: 'pmt',
+            pv: 5000,
+            fv: 89542,
+            pmt: 500,
+            nominalRate: 10.0,
+            useRealReturns: 'nominal',
+            years: 10,
+            months: 0,
+            py: 12,
+            cy: 1,
+            timing: 0
+          }
+        };
+        saveToLocalStorage();
+      }
+      populateGoalDropdown();
+      loadGoalIntoForm(Object.keys(goalLibrary)[0]);
+    }
+
+    function saveToLocalStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(goalLibrary));
+    }
+
+    function populateGoalDropdown() {
+      const selector = document.getElementById('goalSelector');
+      selector.innerHTML = '';
+      for (const id in goalLibrary) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = goalLibrary[id].name || 'Untitled Goal';
+        if (id === activeGoalId) opt.selected = true;
+        selector.appendChild(opt);
+      }
+    }
+
+    function createNewGoal() {
+      const id = 'goal_' + Date.now();
+      goalLibrary[id] = {
+        name: "New Financial Target",
+        costToday: 25000,
+        inflation: 5.0,
+        autoSetFV: 'yes',
+        solveTarget: 'pmt',
+        pv: 0,
+        fv: 40000,
+        pmt: 200,
+        nominalRate: 8.0,
+        useRealReturns: 'nominal',
+        years: 8,
+        months: 0,
+        py: 12,
+        cy: 1,
+        timing: 0
+      };
+      activeGoalId = id;
+      saveToLocalStorage();
+      populateGoalDropdown();
+      loadGoalIntoForm(id);
+    }
+
+    function deleteCurrentGoal() {
+      const keys = Object.keys(goalLibrary);
+      if (keys.length <= 1) {
+        alert("You must keep at least one active goal profile.");
+        return;
+      }
+      delete goalLibrary[activeGoalId];
+      activeGoalId = Object.keys(goalLibrary)[0];
+      saveToLocalStorage();
+      populateGoalDropdown();
+      loadGoalIntoForm(activeGoalId);
+    }
+
+    function loadSelectedGoal() {
+      activeGoalId = document.getElementById('goalSelector').value;
+      loadGoalIntoForm(activeGoalId);
+    }
+
+    function loadGoalIntoForm(id) {
+      const g = goalLibrary[id];
+      if (!g) return;
+      document.getElementById('goalTitle').value = g.name;
+      document.getElementById('costToday').value = g.costToday;
+      document.getElementById('inflationRate').value = g.inflation;
+      document.getElementById('autoSetFV').value = g.autoSetFV;
+      document.getElementById('solveTarget').value = g.solveTarget;
+      document.getElementById('inputPV').value = g.pv;
+      document.getElementById('inputFV').value = g.fv;
+      document.getElementById('inputPMT').value = g.pmt;
+      document.getElementById('nominalRate').value = g.nominalRate;
+      document.getElementById('useRealReturns').value = g.useRealReturns;
+      document.getElementById('horizonYears').value = g.years;
+      document.getElementById('horizonMonths').value = g.months;
+      document.getElementById('pySelect').value = g.py;
+      document.getElementById('cySelect').value = g.cy;
+      document.getElementById('timingSelect').value = g.timing;
+
+      document.getElementById('sliderRate').value = g.nominalRate;
+      document.getElementById('sliderYears').value = g.years;
+      document.getElementById('labelSliderRate').textContent = `${parseFloat(g.nominalRate).toFixed(1)}%`;
+      document.getElementById('labelSliderYears').textContent = `${g.years} Years`;
+
+      updateSolveUI();
+      calculateEngine();
+    }
+
+    function saveCurrentGoal() {
+      if (!goalLibrary[activeGoalId]) return;
+      goalLibrary[activeGoalId].name = document.getElementById('goalTitle').value;
+      goalLibrary[activeGoalId].costToday = parseFloat(document.getElementById('costToday').value) || 0;
+      goalLibrary[activeGoalId].inflation = parseFloat(document.getElementById('inflationRate').value) || 0;
+      goalLibrary[activeGoalId].autoSetFV = document.getElementById('autoSetFV').value;
+      goalLibrary[activeGoalId].solveTarget = document.getElementById('solveTarget').value;
+      goalLibrary[activeGoalId].pv = parseFloat(document.getElementById('inputPV').value) || 0;
+      goalLibrary[activeGoalId].fv = parseFloat(document.getElementById('inputFV').value) || 0;
+      goalLibrary[activeGoalId].pmt = parseFloat(document.getElementById('inputPMT').value) || 0;
+      goalLibrary[activeGoalId].nominalRate = parseFloat(document.getElementById('nominalRate').value) || 0;
+      goalLibrary[activeGoalId].useRealReturns = document.getElementById('useRealReturns').value;
+      goalLibrary[activeGoalId].years = parseInt(document.getElementById('horizonYears').value) || 0;
+      goalLibrary[activeGoalId].months = parseInt(document.getElementById('horizonMonths').value) || 0;
+      goalLibrary[activeGoalId].py = parseInt(document.getElementById('pySelect').value);
+      goalLibrary[activeGoalId].cy = parseInt(document.getElementById('cySelect').value);
+      goalLibrary[activeGoalId].timing = parseInt(document.getElementById('timingSelect').value);
+
+      saveToLocalStorage();
+      populateGoalDropdown();
+    }
+
+    function updateSolveUI() {
+      const mode = document.getElementById('solveTarget').value;
+      document.getElementById('containerPV').style.display = mode === 'pv' ? 'none' : 'block';
+      document.getElementById('containerFV').style.display = mode === 'fv' ? 'none' : 'block';
+      document.getElementById('containerPMT').style.display = mode === 'pmt' ? 'none' : 'block';
+
+      if (mode === 'pmt') document.getElementById('labelSolMetric').textContent = 'Required Payment (PMT)';
+      else if (mode === 'fv') document.getElementById('labelSolMetric').textContent = 'Projected FV';
+      else if (mode === 'pv') document.getElementById('labelSolMetric').textContent = 'Required Upfront (PV)';
+    }
+
+    function toggleAutoFV() {
+      const auto = document.getElementById('autoSetFV').value === 'yes';
+      document.getElementById('inputFV').readOnly = auto;
+      calculateEngine();
+    }
+
+    function syncRateSlider() {
+      const val = document.getElementById('sliderRate').value;
+      document.getElementById('nominalRate').value = val;
+      document.getElementById('labelSliderRate').textContent = `${parseFloat(val).toFixed(1)}%`;
+      calculateEngine();
+    }
+
+    function syncYearsSlider() {
+      const val = document.getElementById('sliderYears').value;
+      document.getElementById('horizonYears').value = val;
+      document.getElementById('labelSliderYears').textContent = `${val} Years`;
+      calculateEngine();
+    }
+
+    function calculateEngine() {
+      const costToday = parseFloat(document.getElementById('costToday').value) || 0;
+      const inflation = (parseFloat(document.getElementById('inflationRate').value) || 0) / 100;
+      const nominalRate = (parseFloat(document.getElementById('nominalRate').value) || 0) / 100;
+      const years = parseInt(document.getElementById('horizonYears').value) || 0;
+      const months = parseInt(document.getElementById('horizonMonths').value) || 0;
+      const py = parseInt(document.getElementById('pySelect').value);
+      const cy = parseInt(document.getElementById('cySelect').value);
+      const timing = parseInt(document.getElementById('timingSelect').value);
+      const solveTarget = document.getElementById('solveTarget').value;
+      const autoSetFV = document.getElementById('autoSetFV').value === 'yes';
+      const useReal = document.getElementById('useRealReturns').value === 'real';
+
+      const totalYearsEquivalent = years + (months / 12);
+      const totalPeriods = (years * py) + ((months / 12) * py);
+
+      // 1. Past, Present, Future Inflation Timeline
+      // Past equivalent: N years ago
+      const pastVal = costToday / Math.pow(1 + inflation, totalYearsEquivalent);
+      // Future target: N years in future
+      const futureVal = costToday * Math.pow(1 + inflation, totalYearsEquivalent);
+
+      document.getElementById('valPast').textContent = formatCur(pastVal);
+      document.getElementById('valToday').textContent = formatCur(costToday);
+      document.getElementById('valFuture').textContent = formatCur(futureVal);
+      document.getElementById('labelPast').textContent = `Cost ${totalYearsEquivalent.toFixed(1)} Yrs Ago`;
+      document.getElementById('labelFuture').textContent = `Future Cost (${totalYearsEquivalent.toFixed(1)} Yrs)`;
+
+      // Auto-set FV if user wants inflation protection
+      if (autoSetFV && solveTarget !== 'fv') {
+        document.getElementById('inputFV').value = futureVal.toFixed(2);
+      }
+
+      let pv = parseFloat(document.getElementById('inputPV').value) || 0;
+      let fv = parseFloat(document.getElementById('inputFV').value) || 0;
+      let pmt = parseFloat(document.getElementById('inputPMT').value) || 0;
+
+      // 2. Fisher Real vs. Nominal Investment Return calculation
+      let compRate = nominalRate;
+      if (useReal) {
+        // Real rate = (1 + r) / (1 + i) - 1
+        compRate = (1 + nominalRate) / (1 + inflation) - 1;
+        document.getElementById('rateStatusTag').textContent = `Real Rate: ${(compRate * 100).toFixed(2)}%`;
+      } else {
+        document.getElementById('rateStatusTag').textContent = `Nominal Rate: ${(nominalRate * 100).toFixed(2)}%`;
+      }
+
+      if (totalPeriods <= 0) return;
+
+      // 3. Precise Non-Synchronized TVM Solution
+      // Effective interest rate per payment period (i_p)
+      const ip = Math.pow(1 + (compRate / cy), cy / py) - 1;
+      const growthFactor = Math.pow(1 + ip, totalPeriods);
+      const annuityFactor = ((growthFactor - 1) / ip) * (1 + (ip * timing));
+
+      if (solveTarget === 'pmt') {
+        pmt = (fv - (pv * growthFactor)) / annuityFactor;
+        document.getElementById('resSol').textContent = formatCur(pmt);
+      } else if (solveTarget === 'fv') {
+        fv = (pv * growthFactor) + (pmt * annuityFactor);
+        document.getElementById('resSol').textContent = formatCur(fv);
+      } else if (solveTarget === 'pv') {
+        pv = (fv - (pmt * annuityFactor)) / growthFactor;
+        document.getElementById('resSol').textContent = formatCur(pv);
+      }
+
+      const totalInvested = pv + (pmt * totalPeriods);
+      const totalGain = fv - totalInvested;
+
+      document.getElementById('resFV').textContent = formatCur(fv);
+      document.getElementById('resPrincipal').textContent = formatCur(totalInvested);
+      document.getElementById('resGain').textContent = formatCur(totalGain);
+
+      updateTrajectoryAndMilestones(pv, pmt, ip, py, totalPeriods, timing);
+      saveCurrentGoal();
+    }
+
+    function updateTrajectoryAndMilestones(pv, pmt, ip, py, totalPeriods, timing) {
+      const labels = [];
+      const principalData = [];
+      const balanceData = [];
+      const tableRows = [];
+
+      let currentBalance = pv;
+      let runningPrincipal = pv;
+      let yearlyAccruedInterest = 0;
+
+      labels.push('Start');
+      principalData.push(runningPrincipal);
+      balanceData.push(currentBalance);
+
+      for (let i = 1; i <= totalPeriods; i++) {
+        if (timing === 1) currentBalance += pmt;
+        const interest = currentBalance * ip;
+        yearlyAccruedInterest += interest;
+        currentBalance += interest;
+        if (timing === 0) currentBalance += pmt;
+
+        runningPrincipal += pmt;
+
+        if (i % py === 0 || i === totalPeriods) {
+          const yr = Math.ceil(i / py);
+          labels.push(`Year ${yr}`);
+          principalData.push(Math.round(runningPrincipal));
+          balanceData.push(Math.round(currentBalance));
+
+          tableRows.push(`
+            <tr>
+              <td>Year ${yr}</td>
+              <td>${formatCur(runningPrincipal)}</td>
+              <td>${formatCur(yearlyAccruedInterest)}</td>
+              <td><strong>${formatCur(currentBalance)}</strong></td>
+            </tr>
+          `);
+          yearlyAccruedInterest = 0;
+        }
+      }
+
+      document.getElementById('scheduleTableBody').innerHTML = tableRows.join('');
+      renderChart(labels, principalData, balanceData);
+    }
+
+    function renderChart(labels, principal, balances) {
+      const ctx = document.getElementById('mainChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Total Accumulated Value',
+              data: balances,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+              fill: true,
+              tension: 0.2
+            },
+            {
+              label: 'Principal Contributed',
+              data: principal,
+              borderColor: '#9ca3af',
+              borderDash: [4, 4],
+              tension: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#9ca3af' } } },
+          scales: {
+            x: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } },
+            y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } }
+          }
+        }
+      });
+    }
+
+    function formatCur(v) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: 'USD', maximumFractionDigits: 0
+      }).format(v || 0);
+    }
+
+    function exportToPDF() {
+      const element = document.getElementById('printableArea');
+      const goalName = document.getElementById('goalTitle').value || 'Financial_Plan';
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `${goalName.replace(/\s+/g, '_')}_Plan.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, backgroundColor: '#0a0e17' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+      };
+      html2pdf().set(opt).from(element).save();
+    }
+
+    // Startup initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      initStore();
+    });
+  </script>
+</body>
+</html>
